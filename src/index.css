@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- Anpassningar för EPA-projektet --- */
+
+/* Gör toppen snyggare */
+input::placeholder {
+  color: #555;
+}
+
+button {
+  transition: all 0.2s;
+}
+
+button:hover {
+  transform: scale(1.05);
+}
+
+/* Grundutseende för hela appen */
+body {
+  background-color: #111827; /* fallback om Tailwind ej laddas */
+  color: white;
+  @apply bg-gray-900 text-white;
+}
+
+/* Full höjd för appen och Leaflet */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Kartans z-index lägre än menyn */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* Leaflet-lager ska ligga i ordning men under UI */
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-popup,
+.leaflet-overlay-pane {
+  z-index: 1;
+}
