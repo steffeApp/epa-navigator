@@ -47,3 +47,16 @@ body,
 .leaflet-overlay-pane {
   z-index: 1;
 }
+/* Fix för iOS Safari safe-area bug */
+header {
+  padding-top: env(safe-area-inset-top);
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+* {
+  min-width: 0;
+}

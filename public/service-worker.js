@@ -1,53 +1,95 @@
-self.addEventListener("install", () => {
-  console.log("🧱 Service worker installerad");
-});
+// service-worker.js
+const CACHE_VERSION = "v1.1.1"; 
+const CACHE_NAME = `epa-cache-${CACHE_VERSION}`;
 
-self.addEventListener("fetch", (event) => {
-  // Här kan du lägga till caching senare om du vill
-});
-// 🧱 Enkel service worker för offline-cache av EPA Navigator
-const CACHE_NAME = "epa-navigator-v1";
-const ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.json",
-  "/icons/icon-192x192.png",
-  "/icons/icon-512x512.png",
+const PRECACHE_URLS = [
+  '/',
+  '/index.html',
+  '/offline.html',
+  '/manifest.json',
+  '/favicon.ico'
 ];
 
-// 📦 Installera SW och cacha grundfiler
-self.addEventListener("install", (event) => {
-  console.log("🛠️ Installerar service worker...");
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log("📦 Cachar resurser:", ASSETS);
-      return cache.addAll(ASSETS);
-    })
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// ⚡ Aktivera ny SW och rensa gamla cachear
-self.addEventListener("activate", (event) => {
-  console.log("⚡ Aktiverar ny service worker...");
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
-
-// 🌐 Fånga fetch-förfrågningar (offline-stöd)
-self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return (
-        cached ||
-        fetch(event.request).catch(() =>
-          caches.match("/index.html") // fallback offline
-        )
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.map(key => key !== CACHE_NAME && caches.delete(key))
       );
-    })
+
+      await self.clients.claim();
+
+      // Skicka update-notis till alla tabs
+      const clients = await self.clients.matchAll({ type: 'window' });
+      for (const client of clients) {
+        client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION });
+      }
+    })()
+  );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+
+  if (request.method !== 'GET') return;
+
+  // Navigation: Network first
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(request);
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(request, response.clone());
+          return response;
+        } catch {
+          const cached = await caches.match(request);
+          return cached || caches.match('/offline.html');
+        }
+      })()
+    );
+    return;
+  }
+
+  // Assets: Cache first, update in background
+  event.respondWith(
+    (async () => {
+      const cached = await caches.match(request);
+      if (cached) {
+        event.waitUntil(
+          caches.open(CACHE_NAME).then(async (cache) => {
+            try {
+              const fresh = await fetch(request);
+              await cache.put(request, fresh.clone());
+            } catch {}
+          })
+        );
+        return cached;
+      }
+
+      try {
+        const response = await fetch(request);
+        const cache = await caches.open(CACHE_NAME);
+        cache.put(request, response.clone());
+        return response;
+      } catch {
+        return caches.match('/offline.html');
+      }
+    })()
   );
 });

@@ -1,3 +1,5 @@
+console.warn("⚠️ OBS! Glöm inte att uppdatera CACHE_VERSION i service-worker.js när du gör en ny release!");
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'

@@ -2,46 +2,42 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./index.css";
+import { SWUpdateBanner } from "./sw/SWUpdateBanner.jsx";
 
-// 🧠 Rendera appen
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
+    <SWUpdateBanner />
   </React.StrictMode>
 );
 
-// 🌐 Registrera Service Worker (endast i produktion eller localhost)
+// 📦 Service Worker – auto-update
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    const isLocalhost =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
+  window.addEventListener("load", async () => {
+    try {
+      const reg = await navigator.serviceWorker.register("/service-worker.js");
+      console.log("✅ Service Worker registrerad:", reg.scope);
 
-    const swUrl = "/service-worker.js";
-
-    navigator.serviceWorker
-      .register(swUrl)
-      .then((registration) => {
-        console.log("✅ Service worker registrerad:", registration.scope);
-
-        // 🔄 Hantera uppdateringar
-        registration.onupdatefound = () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.onstatechange = () => {
-              if (newWorker.state === "installed") {
-                if (navigator.serviceWorker.controller) {
-                  console.log("♻️ Ny version tillgänglig! Ladda om för att uppdatera.");
-                } else {
-                  console.log("📱 Appen är nu cachelagrad för offline-användning.");
-                }
-              }
-            };
-          }
-        };
-      })
-      .catch((err) => {
-        console.error("❌ Fel vid registrering av service worker:", err);
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data?.type === "SW_UPDATED") {
+          console.log("♻️ Ny version av appen tillgänglig");
+          window.dispatchEvent(
+            new CustomEvent("sw-update-available", {
+              detail: { version: event.data.version, reg }
+            })
+          );
+        }
       });
+
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        console.log("🔄 Ny SW aktiv → laddar om sidan");
+        if (!window.__reloaded) {
+          window.__reloaded = true;
+          window.location.reload();
+        }
+      });
+    } catch (err) {
+      console.error("❌ Fel vid registrering av Service Worker:", err);
+    }
   });
 }

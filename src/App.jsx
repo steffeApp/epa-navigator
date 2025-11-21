@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { useState, createContext, useEffect } from "react";
 import Layout from "./Layout.jsx";
 
-import MapPage from "./pages/MapPage.jsx";
+import MapPage from "./pages/MapPage_Sim.jsx";
 import WarningZones from "./pages/WarningZones.jsx";
 import CommunityPage from "./pages/CommunityPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";

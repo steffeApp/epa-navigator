@@ -7,10 +7,23 @@ import {
   Polyline,
   useMap,
 } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import polyline from "@mapbox/polyline";
 import { getEpaRoute, geocodeAddress } from "../api.js";
 import { MapContext } from "../App.jsx";
+
+// 📌 FIX FÖR VITE – gör att Leaflets standardmarkör fungerar
+import iconRetina from "leaflet/dist/images/marker-icon-2x.png";
+import iconDefault from "leaflet/dist/images/marker-icon.png";
+import shadow from "leaflet/dist/images/marker-shadow.png";
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: iconRetina,
+  iconUrl: iconDefault,
+  shadowUrl: shadow,
+});
 
 // 🔹 Håller kartan centrerad på användaren
 function RecenterMap({ position }) {
@@ -21,7 +34,7 @@ function RecenterMap({ position }) {
   return null;
 }
 
-// 🔹 Zoomar automatiskt in rutten
+// 🔹 Anpassar zoomnivå baserat på rutten
 function FitBoundsOnRoute({ route }) {
   const map = useMap();
   useEffect(() => {
@@ -44,119 +57,89 @@ export default function MapPage() {
 
   const { startAddress, endAddress, trigger } = useContext(MapContext);
 
-  // 🔁 När användaren trycker på “🚗”-knappen
+  // 🔁 Starta navigation när användaren trycker på “🚗”
   useEffect(() => {
     async function runRoute() {
-      if (!endAddress) return; // vi behöver minst ett mål
+      if (!endAddress) return;
       await startNavigationFromAddresses(startAddress, endAddress);
     }
     runRoute();
   }, [trigger]);
 
-  // 🚦 Beräknar EPA-rutt mellan start och mål
+  // 🚦 Hämta rutt
   async function startNavigationFromAddresses(startAddr, endAddr) {
     let startCoords = null;
-    let endCoords = null;
 
-    // 🔹 Om startadressen är tom → använd aktuell position
     if (!startAddr && position) {
-      console.log("🚗 Använder aktuell position som startpunkt:", position);
       startCoords = position;
     } else {
       startCoords = await geocodeAddress(startAddr);
     }
 
-    // 🔹 Hämta alltid målets koordinater
-    endCoords = await geocodeAddress(endAddr);
+    const endCoords = await geocodeAddress(endAddr);
 
     if (!startCoords || !endCoords) {
       alert("Kunde inte hitta start- eller målkoordinater.");
       return;
     }
 
-    // 🔹 Hämta rutt från OpenRouteService
     const data = await getEpaRoute(startCoords, endCoords);
 
-    if (data && data.routes && data.routes.length > 0) {
-  const encoded = data.routes[0].geometry;
-  const decoded = polyline.decode(encoded).map(([lat, lng]) => [lat, lng]);
-  setRoute(decoded);
-  setStart(startCoords);
-  setEnd(endCoords);
+    if (data && data.routes?.[0]) {
+      const encoded = data.routes[0].geometry;
+      const decoded = polyline.decode(encoded).map(([lat, lng]) => [lat, lng]);
+      setRoute(decoded);
+      setStart(startCoords);
+      setEnd(endCoords);
 
-  // 🧩 Extra loggar för att analysera vad ORS faktiskt returnerar
-  console.log("🧩 Fullständig ORS-route:", data.routes[0]);
-  console.log("🔍 ORS summary:", data.routes[0].summary);
-  console.log("🔍 ORS segments:", data.routes[0].segments);
-  console.log("🔍 ORS geometry:", data.routes[0].geometry?.slice(0, 120) + "...");
+      // 🧮 Avstånd & tid
+      const distanceKm =
+        data.routes[0]?.summary?.distance ||
+        data.routes[0]?.segments?.[0]?.distance ||
+        0;
 
-  // 🕒 Beräkna EPA-anpassad körtid (30 km/h)
-  const distanceMeters =
-    data.routes[0]?.summary?.distance ||
-    data.routes[0]?.segments?.[0]?.distance ||
-    0;
+      const epaSpeed = 30;
+      const durationHours = distanceKm / epaSpeed;
+      const durationMinutes = Math.round(durationHours * 60);
 
-  const distanceKm = distanceMeters;
-  const epaSpeed = 30; // km/h
-  const durationHours = distanceKm / epaSpeed;
-  const durationMinutes = Math.round(durationHours * 60);
-
-  setDistance(distanceKm);
-  setDuration(durationMinutes);
-
-  console.log(
-    `📏 Distans från ORS: ${distanceKm.toFixed(2)} km — EPA-tid: ${durationMinutes} min`
-  );
-  console.log("✅ Rutt beräknad mellan", startCoords, "och", endCoords);
-} else {
-  alert("Ingen rutt kunde beräknas 😕");
-}
-
-  } // 👈❗ Här stänger vi funktionen korrekt!
+      setDistance(distanceKm);
+      setDuration(durationMinutes);
+    } else {
+      alert("Ingen rutt kunde beräknas 😕");
+    }
+  }
 
   // 📍 Hämta användarens plats vid start
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          };
-          setPosition(coords);
-          setStart(coords);
-          setLoading(false);
-        },
-        (err) => {
-          console.warn("Kunde inte hämta position:", err);
-          setLoading(false);
-        }
-      );
-    } else {
-      console.warn("Geolocation stöds inte.");
-      setLoading(false);
-    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        };
+        setPosition(coords);
+        setStart(coords);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
   }, []);
 
-  if (loading) {
-    return <div className="text-white p-4">Hämtar din position...</div>;
-  }
+  if (loading) return <div className="text-white p-4">Hämtar din position...</div>;
 
   return (
     <div className="p-2 h-full flex flex-col text-white">
-      {/* 🧭 Informationsruta */}
-      <div className="bg-gray-900/80 text-white px-4 py-2 mb-3 rounded-xl shadow-md border border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+
+      {/* 🧭 Info-ruta */}
+      <div className="bg-gray-900/80 px-4 py-2 mb-3 rounded-xl shadow-md border border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div className="text-lg">
-          ⏱️{" "}
-          <span className="font-semibold text-blue-400">
+          ⏱️ <span className="font-semibold text-blue-400">
             {duration !== null ? `${duration} min` : "—"}
-          </span>{" "}
-          körtid
+          </span>
         </div>
 
         <div className="text-sm text-gray-300 mt-1 sm:mt-0">
-          📏 Sträcka:{" "}
-          <span className="text-blue-400 font-medium">
+          📏 Sträcka: <span className="text-blue-400 font-medium">
             {distance !== null ? `${distance.toFixed(1)} km` : "—"}
           </span>
         </div>
@@ -170,24 +153,26 @@ export default function MapPage() {
         style={{ height: "calc(100vh - 120px)", width: "100%" }}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+          attribution='&copy; OpenStreetMap'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
         <RecenterMap position={position} />
         <FitBoundsOnRoute route={route} />
 
-        {/* Markörer */}
+        {/* Markörer med standard-ikoner */}
         {position && (
           <Marker position={[position.lat, position.lng]}>
             <Popup>Du är här 📍</Popup>
           </Marker>
         )}
-        {start && (
+
+        {start && start !== position && (
           <Marker position={[start.lat, start.lng]}>
             <Popup>Start</Popup>
           </Marker>
         )}
+
         {end && (
           <Marker position={[end.lat, end.lng]}>
             <Popup>Mål</Popup>
