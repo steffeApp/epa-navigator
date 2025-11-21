@@ -49,8 +49,8 @@ if (!L.Map.prototype.rotateTo) {
       if (!pane) return;
 
       const deg = this._rotate || 0;
-      pane.style.transformOrigin = "center center";
-      pane.style.transform = `rotate(${deg}deg)`;
+      // pane.style.transformOrigin = "center center";
+     // pane.style.transform = `rotate(${deg}deg)`;
     },
 
     rotateTo: function (angle, duration = 300) {
@@ -73,7 +73,7 @@ if (!L.Map.prototype.rotateTo) {
     },
   });
 }
-
+/*
 // ------------------------------------------------------
 // Patch: roterbar marker (L.Marker.setRotationAngle)
 // ------------------------------------------------------
@@ -119,14 +119,14 @@ if (!L.Marker.prototype.setRotationAngle) {
     this._icon.style.transform = `rotate(${angle}deg)`;
   };
 }
-
+*/
 // ------------------------------------------------------
 // LGF-ikon
 // ------------------------------------------------------
 const lgfIcon = L.icon({
-  iconUrl: "/icons/lgf_icon_40x40.png",
+  iconUrl: "/icons/lgf_transparent_40x40.png",
   iconSize: [40, 40],
-  iconAnchor: [20, 20],
+  iconAnchor: [0, 0],
 });
 
 // ------------------------------------------------------
@@ -284,18 +284,18 @@ export default function MapPage_Sim() {
   // Initial position
   // -----------------------
   useEffect(() => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        };
-        setPosition(coords);
-        setStart(coords);
-        setLoading(false);
-      },
-      () => setLoading(false)
-    );
+   navigator.geolocation.getCurrentPosition(
+  (pos) => {
+    const coords = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+    };
+    setPosition(coords);   // ← BEHÅLL detta
+    // setStart(coords);   // ← TA BORT denna rad
+    setLoading(false);
+  },
+  () => setLoading(false)
+);
   }, []);
 
   // -----------------------
@@ -447,7 +447,7 @@ export default function MapPage_Sim() {
             position={[position.lat, position.lng]}
             icon={lgfIcon}
             rotationAngle={heading}
-            rotationOrigin="center"
+            rotationOrigin="center center"
           >
             <Popup>Du är här 📍</Popup>
           </Marker>
